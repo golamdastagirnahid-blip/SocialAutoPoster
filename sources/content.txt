@@ -1,0 +1,15 @@
+# UNIFIED CONTENT SOURCE - one URL per line.
+#
+# Routing rules applied automatically:
+#   - VIDEO   -> posted to Facebook (Reels/video) AND YouTube (Shorts)
+#   - IMAGE   -> posted to Facebook only
+#   - Comments start with #
+#
+# Supports: bunkr albums, direct media URLs (.mp4 / .jpg / .png ...), or any
+# yt-dlp-supported page (TikTok, Reddit, Twitter, etc).
+#
+# Examples:
+# https://bunkr.cr/a/eqbJ1JL5
+# https://bunkr.cr/f/01hGukLXy2V7Z
+# https://i.ibb.co/xyz/some.jpg
+
