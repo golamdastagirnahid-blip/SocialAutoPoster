@@ -31,10 +31,12 @@ from . import config, state, scraper, ai, facebook, youtube
 
 PLATFORMS = ("facebook", "youtube")
 
-# Cadence knobs - adjust here, not in code below
-COOLDOWN_MIN_H = 18.0
-COOLDOWN_MAX_H = 32.0
-REST_DAY_PROB  = 0.05         # 5 % chance to skip a possible post
+# Per-platform cadence (target posts/day baked into cooldown band)
+CADENCE = {
+    "facebook": {"min_h":  9.0, "max_h": 15.0, "rest_day_prob": 0.03},  # ~2 posts/day
+    "youtube":  {"min_h": 18.0, "max_h": 32.0, "rest_day_prob": 0.05},  # ~1 post/day
+}
+ITEM_MAX_ATTEMPTS = 3         # drop an item after this many failed posts
 QUEUE_MAX_AGE_D = 60          # prune items unused for 60 d
 ORPHAN_MAX_AGE_H = 6          # delete downloads older than 6 h
 MIN_FREE_DISK_MB = 500        # abort if less than this on tick
@@ -118,33 +120,29 @@ def _within_active_hours(now=None):
         return start <= h <= end
     return h >= start or h <= end  # window crosses midnight
 
-def _post_chance(hours_since):
-    """Probability of posting *this tick* given hours since last post.
-
-    Curve:
-        <COOLDOWN_MIN_H -> 0
-        between MIN..MAX -> linearly ramp 0 -> 1
-        >COOLDOWN_MAX_H -> 0.95 (catch-up but never 1.0 to keep variance)
-    """
-    if hours_since < COOLDOWN_MIN_H: return 0.0
-    if hours_since > COOLDOWN_MAX_H: return 0.95
-    span = COOLDOWN_MAX_H - COOLDOWN_MIN_H
-    return (hours_since - COOLDOWN_MIN_H) / span
+def _post_chance(hours_since, platform):
+    """Probability of posting *this tick* given hours since last post."""
+    cad = CADENCE[platform]
+    if hours_since < cad["min_h"]: return 0.0
+    if hours_since > cad["max_h"]: return 0.95
+    span = cad["max_h"] - cad["min_h"]
+    return (hours_since - cad["min_h"]) / span
 
 def _should_post_now(st, platform, force=False):
     p = st[platform]
+    cad = CADENCE[platform]
     if p.get("paused"): return False, f"{platform} paused: {p.get('last_error') or 'manual'}"
     if not p["queue"]:  return False, "queue empty"
     if force:           return True, "forced"
     if not _within_active_hours():
         return False, f"outside active hours ({config.HOUR_START}-{config.HOUR_END} UTC)"
     h = state.hours_since_last(st, platform)
-    chance = _post_chance(h)
-    if chance == 0.0: return False, f"cooldown ({h:.1f}h < {COOLDOWN_MIN_H}h)"
-    if random.random() < REST_DAY_PROB:
+    chance = _post_chance(h, platform)
+    if chance == 0.0: return False, f"cooldown ({h:.1f}h < {cad['min_h']}h)"
+    if random.random() < cad["rest_day_prob"]:
         return False, f"rest-day skip ({h:.1f}h, p={chance:.2f})"
     if random.random() < chance:
-        return True, f"post ({h:.1f}h, p={chance:.2f})"
+        return True, f"post ({h:.1f}h, p={chance:.2f}, target~{24/((cad['min_h']+cad['max_h'])/2):.1f}/day)"
     return False, f"random skip ({h:.1f}h, p={chance:.2f})"
 
 # --------------------------------------------------------------------- preflight
@@ -253,8 +251,16 @@ def post_once(st, platform, force=False, dry=False):
         log("ERROR", f"{platform} post failed: {msg}")
         traceback.print_exc()
         state.record_failure(st, platform, msg)
-        # Re-queue at front so we retry next tick
-        st[platform]["queue"].insert(0, item)
+        # Per-item retry cap: a permanently-broken file must not block the queue
+        item["attempts"] = int(item.get("attempts", 0)) + 1
+        if item["attempts"] >= ITEM_MAX_ATTEMPTS:
+            log("WARN", f"{platform} dropping item after {item['attempts']} failed attempts: "
+                        f"{item.get('media_url')!r} - last_error={msg}")
+            # already in seen, so it won't be re-fetched. Move on.
+        else:
+            # Re-queue at BACK (not front) so we don't block the rest of the queue
+            st[platform]["queue"].append(item)
+            log("INFO", f"{platform} re-queued at end (attempt {item['attempts']}/{ITEM_MAX_ATTEMPTS})")
     finally:
         if local:
             try: Path(local).unlink(missing_ok=True)
