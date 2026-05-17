@@ -1,0 +1,22 @@
+{% macro render(jobs) %}
+<table>
+<thead><tr><th>#</th><th>Source</th><th>Type</th><th>Title</th><th>Status</th><th>Scheduled</th><th>Posted</th><th>Error</th><th></th></tr></thead>
+<tbody>
+{% for j in jobs %}
+<tr class="s-{{ j.status }}">
+  <td>{{ j.id }}</td>
+  <td class="src" title="{{ j.source_url }}">{{ j.source_url[:50] }}{% if j.source_url|length>50 %}…{% endif %}</td>
+  <td>{{ j.media_type or '-' }}</td>
+  <td>{{ (j.title or '')[:60] }}</td>
+  <td><span class="pill p-{{ j.status }}">{{ j.status }}</span></td>
+  <td>{{ j.scheduled_at|ts }}</td>
+  <td>{{ j.posted_at|ts }}</td>
+  <td class="err">{{ (j.error or '')[:80] }}</td>
+  <td>
+    <form method="post" action="{{ url_for('job_action', job_id=j.id, action='retry') }}" style="display:inline"><button class="ghost" title="retry">↻</button></form>
+    <form method="post" action="{{ url_for('job_action', job_id=j.id, action='delete') }}" style="display:inline"><button class="ghost danger" title="delete">✕</button></form>
+  </td>
+</tr>
+{% else %}<tr><td colspan="9" class="muted">No jobs yet.</td></tr>{% endfor %}
+</tbody></table>
+{% endmacro %}

@@ -1,0 +1,28 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.idea/
+.vscode/
+.DS_Store
+
+# Secrets — NEVER commit
+.env
+*.env
+client_secret.json
+client_secrets.json
+token.json
+
+# Local data
+automation_data/
+downloads/
+*.db
+*.sqlite
+*.mp4
+*.webm
+*.mov
+*.mkv
+*.jpg
+*.jpeg
+*.png
+*.webp

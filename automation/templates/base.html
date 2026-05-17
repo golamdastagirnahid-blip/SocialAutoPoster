@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Auto Poster{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header>
+  <h1><a href="{{ url_for('index') }}">⚡ FB + YT Auto Poster</a></h1>
+  <nav>
+    <a href="{{ url_for('index') }}">Dashboard</a>
+    <a href="{{ url_for('logs') }}">Logs</a>
+  </nav>
+</header>
+{% with msgs = get_flashed_messages(with_categories=true) %}
+  {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+{% endwith %}
+<main>{% block body %}{% endblock %}</main>
+<footer>v1.0 — humanized automation, monetization-safe defaults.</footer>
+</body>
+</html>

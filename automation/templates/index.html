@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% import "_macros.html" as m %}
+{% block body %}
+{% macro state_banner(name, st) %}
+  {% if st.paused %}
+  <div class="banner err">
+    <strong>{{ name }} is PAUSED</strong> — {{ st.last_error or 'manual' }}
+    <form method="post" action="{{ url_for('platform_action', platform=name|lower, action='resume') }}" style="display:inline">
+      <button class="ghost">Resume</button>
+    </form>
+  </div>
+  {% elif st.consecutive_failures and st.consecutive_failures > 0 %}
+  <div class="banner warn">
+    <strong>{{ name }}</strong>: {{ st.consecutive_failures }} consecutive failure(s) — auto-pause at 5
+    <form method="post" action="{{ url_for('platform_action', platform=name|lower, action='pause') }}" style="display:inline">
+      <button class="ghost">Pause now</button>
+    </form>
+  </div>
+  {% endif %}
+{% endmacro %}
+{{ state_banner('Facebook', fb_state) }}
+{{ state_banner('YouTube', yt_state) }}
+<section class="grid">
+  <div class="card">
+    <h2>📘 Facebook sources</h2>
+    <p class="muted">Videos & images → your Page (Graph API).</p>
+    <form method="post" action="{{ url_for('add', platform='facebook') }}">
+      <textarea name="urls" rows="6" placeholder="One URL per line (bunkr album / direct .mp4 / image URL / yt-dlp-supported page)"></textarea>
+      <button type="submit">Add to Facebook queue</button>
+    </form>
+    <div class="stat">stats: {{ stats.get('facebook', {}) }}</div>
+  </div>
+
+  <div class="card">
+    <h2>▶️ YouTube sources (Shorts)</h2>
+    <p class="muted">Videos only. Images are auto-skipped.</p>
+    <form method="post" action="{{ url_for('add', platform='youtube') }}">
+      <textarea name="urls" rows="6" placeholder="One URL per line"></textarea>
+      <button type="submit">Add to YouTube queue</button>
+    </form>
+    <div class="stat">stats: {{ stats.get('youtube', {}) }}</div>
+    <form method="post" action="{{ url_for('yt_authorize') }}" style="margin-top:.5em">
+      <button type="submit" class="ghost">Authorize YouTube (one-time)</button>
+    </form>
+  </div>
+</section>
+
+<section><h2>📘 Facebook queue</h2>{{ m.render(fb_jobs) }}</section>
+<section><h2>▶️ YouTube queue</h2>{{ m.render(yt_jobs) }}</section>
+
+<script>setTimeout(()=>location.reload(), 30000);</script>
+{% endblock %}

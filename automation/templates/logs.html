@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block body %}
+<h2>Recent logs</h2>
+<table class="logs">
+<thead><tr><th>Time</th><th>Lvl</th><th>Message</th></tr></thead>
+<tbody>
+{% for l in logs %}
+<tr class="lv-{{ l.level }}"><td>{{ l.ts|ts }}</td><td>{{ l.level }}</td><td><pre>{{ l.msg }}</pre></td></tr>
+{% else %}<tr><td colspan="3" class="muted">No logs yet.</td></tr>{% endfor %}
+</tbody></table>
+<script>setTimeout(()=>location.reload(), 15000);</script>
+{% endblock %}
