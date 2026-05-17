@@ -26,6 +26,7 @@ Self-healing each tick:
     - Sanity filters (file size, video duration, empty).
 """
 import os, sys, random, traceback, argparse, time, shutil, json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from . import config, state, scraper, ai, facebook, youtube
 
@@ -112,38 +113,83 @@ def sync_sources(st):
             log("INFO", f"queued +{added_total} item(s) from {src}")
 
 # --------------------------------------------------------------------- decision
+def _snap_to_active_hours(ts):
+    """If ts falls outside ACTIVE_HOUR_START..END (UTC), shift it forward
+    into the next valid window with random minutes/seconds for natural look."""
+    s, e = config.HOUR_START, config.HOUR_END
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
+    h = dt.hour
+    in_window = (s <= h <= e) if s <= e else (h >= s or h <= e)
+    if in_window:
+        return ts
+    # Shift to next start-of-window
+    if s <= e:
+        if h < s:
+            new = dt.replace(hour=s, minute=random.randint(0, 59),
+                             second=random.randint(0, 59), microsecond=0)
+        else:  # h > e
+            new = (dt + timedelta(days=1)).replace(
+                hour=s, minute=random.randint(0, 59),
+                second=random.randint(0, 59), microsecond=0)
+    else:  # window crosses midnight - rare; just advance 1h
+        new = dt + timedelta(hours=1)
+    return int(new.timestamp())
+
+def schedule_next(st, platform, *, base_ts=None):
+    """Pick a fresh random target time for the NEXT post on this platform.
+
+    Called after every successful post (and on first run). The random draw
+    happens here, so each scheduled time is independent of any previous one
+    - genuinely different every cycle.
+    """
+    cad = CADENCE[platform]
+    base = base_ts if base_ts is not None else (st[platform].get("last_post_ts") or int(time.time()))
+    h_target = random.uniform(cad["min_h"], cad["max_h"])
+    # Occasional rest-day: extend by a full day
+    if random.random() < cad["rest_day_prob"]:
+        h_target += 24.0
+        log("INFO", f"{platform}: rest-day rolled, next post pushed to ~{h_target:.1f}h gap")
+    target_ts = base + h_target * 3600
+    target_ts = _snap_to_active_hours(int(target_ts))
+    st[platform]["next_post_at"] = target_ts
+    when = datetime.fromtimestamp(target_ts, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    log("INFO", f"{platform}: next post scheduled at {when} (~{h_target:.1f}h gap)")
+    return target_ts
+
+def _ensure_scheduled(st, platform):
+    """Make sure next_post_at is set. Migrates legacy state."""
+    p = st[platform]
+    if p.get("next_post_at"):
+        return
+    if p.get("last_post_ts"):
+        schedule_next(st, platform)
+    else:
+        # Never posted: schedule first post for the very next active-hour minute
+        p["next_post_at"] = _snap_to_active_hours(int(time.time()))
+        when = datetime.fromtimestamp(p["next_post_at"], tz=timezone.utc).strftime("%H:%M UTC")
+        log("INFO", f"{platform}: first run, scheduled at {when}")
+
 def _within_active_hours(now=None):
     h = (now or time.gmtime()).tm_hour
-    start = config.HOUR_START
-    end   = config.HOUR_END
-    if start <= end:
-        return start <= h <= end
-    return h >= start or h <= end  # window crosses midnight
-
-def _post_chance(hours_since, platform):
-    """Probability of posting *this tick* given hours since last post."""
-    cad = CADENCE[platform]
-    if hours_since < cad["min_h"]: return 0.0
-    if hours_since > cad["max_h"]: return 0.95
-    span = cad["max_h"] - cad["min_h"]
-    return (hours_since - cad["min_h"]) / span
+    s, e = config.HOUR_START, config.HOUR_END
+    return (s <= h <= e) if s <= e else (h >= s or h <= e)
 
 def _should_post_now(st, platform, force=False):
     p = st[platform]
-    cad = CADENCE[platform]
     if p.get("paused"): return False, f"{platform} paused: {p.get('last_error') or 'manual'}"
     if not p["queue"]:  return False, "queue empty"
     if force:           return True, "forced"
+    _ensure_scheduled(st, platform)
+    npa = p["next_post_at"]
+    now = int(time.time())
+    if now < npa:
+        wait_h = (npa - now) / 3600.0
+        when = datetime.fromtimestamp(npa, tz=timezone.utc).strftime("%m-%d %H:%M UTC")
+        return False, f"waiting until {when} (in {wait_h:.1f}h)"
     if not _within_active_hours():
-        return False, f"outside active hours ({config.HOUR_START}-{config.HOUR_END} UTC)"
-    h = state.hours_since_last(st, platform)
-    chance = _post_chance(h, platform)
-    if chance == 0.0: return False, f"cooldown ({h:.1f}h < {cad['min_h']}h)"
-    if random.random() < cad["rest_day_prob"]:
-        return False, f"rest-day skip ({h:.1f}h, p={chance:.2f})"
-    if random.random() < chance:
-        return True, f"post ({h:.1f}h, p={chance:.2f}, target~{24/((cad['min_h']+cad['max_h'])/2):.1f}/day)"
-    return False, f"random skip ({h:.1f}h, p={chance:.2f})"
+        return False, f"scheduled time reached but outside active hours - will fire next valid hour"
+    when = datetime.fromtimestamp(npa, tz=timezone.utc).strftime("%H:%M UTC")
+    return True, f"scheduled time reached (target was {when})"
 
 # --------------------------------------------------------------------- preflight
 def _disk_free_mb():
@@ -246,6 +292,8 @@ def post_once(st, platform, force=False, dry=False):
         state.record_post(st, platform, remote_id=rid,
                           title=meta["title"], media_url=url)
         log(platform.upper(), f"POSTED id={rid} title={meta['title']!r}")
+        # Roll fresh random schedule for the NEXT post on this platform
+        schedule_next(st, platform)
     except Exception as e:
         msg = str(e)[:300]
         log("ERROR", f"{platform} post failed: {msg}")
@@ -303,8 +351,12 @@ def health(st):
     for plat in PLATFORMS:
         ok, err = PREFLIGHT[plat]()
         log("HEALTH", f"{plat} preflight: {'OK' if ok else 'FAIL - ' + (err or '?')}")
+        _ensure_scheduled(st, plat)  # fill next_post_at if missing
+        npa = st[plat].get("next_post_at") or 0
+        when = datetime.fromtimestamp(npa, tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC") if npa else "(not scheduled yet)"
         log("HEALTH", f"{plat} queue size: {len(st[plat]['queue'])}, "
                       f"last post: {state.hours_since_last(st, plat):.1f}h ago, "
+                      f"next post: {when}, "
                       f"paused: {st[plat]['paused']}, "
                       f"fails: {st[plat]['consecutive_failures']}")
     log("HEALTH", f"disk free: {_disk_free_mb():.0f} MB")

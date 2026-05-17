@@ -26,10 +26,12 @@ STATE_FILE = config.DATA_DIR / "state.json"
 _LOCK = threading.Lock()
 
 DEFAULT = lambda: {
-    "facebook": {"last_post_ts": 0, "posted_count": 0, "queue": [], "seen": [],
-                 "history": [], "paused": False, "consecutive_failures": 0, "last_error": None},
-    "youtube":  {"last_post_ts": 0, "posted_count": 0, "queue": [], "seen": [],
-                 "history": [], "paused": False, "consecutive_failures": 0, "last_error": None},
+    "facebook": {"last_post_ts": 0, "next_post_at": 0, "posted_count": 0,
+                 "queue": [], "seen": [], "history": [],
+                 "paused": False, "consecutive_failures": 0, "last_error": None},
+    "youtube":  {"last_post_ts": 0, "next_post_at": 0, "posted_count": 0,
+                 "queue": [], "seen": [], "history": [],
+                 "paused": False, "consecutive_failures": 0, "last_error": None},
 }
 
 def load():

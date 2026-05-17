@@ -1,6 +1,7 @@
 {
   "facebook": {
     "last_post_ts": 1779000940,
+    "next_post_at": 1779040229,
     "posted_count": 1,
     "queue": [],
     "seen": [
@@ -20,6 +21,7 @@
   },
   "youtube": {
     "last_post_ts": 1779002112,
+    "next_post_at": 1779097205,
     "posted_count": 1,
     "queue": [],
     "seen": [
