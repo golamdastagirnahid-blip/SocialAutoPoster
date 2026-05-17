@@ -1,10 +1,19 @@
 {
   "facebook": {
-    "last_post_ts": 0,
-    "posted_count": 0,
+    "last_post_ts": 1779000940,
+    "posted_count": 1,
     "queue": [],
-    "seen": [],
-    "history": [],
+    "seen": [
+      "https://bunkr.cr/f/01hGukLXy2V7Z"
+    ],
+    "history": [
+      {
+        "ts": 1779000940,
+        "remote_id": "1686985976064013",
+        "title": "Laughter is the best",
+        "media_url": "https://bunkr.cr/f/01hGukLXy2V7Z"
+      }
+    ],
     "paused": false,
     "consecutive_failures": 0,
     "last_error": null
