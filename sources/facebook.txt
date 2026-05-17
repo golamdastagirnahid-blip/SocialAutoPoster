@@ -1,0 +1,6 @@
+# Facebook source URLs — one per line.
+# Lines starting with `#` are comments.
+# Supports: bunkr albums, direct media URLs (.mp4 / .jpg / .png ...), or any yt-dlp page.
+#
+# Example:
+# https://bunkr.cr/a/eqbJ1JL5

@@ -1,15 +1,33 @@
-"""YouTube Shorts upload via YouTube Data API v3 (OAuth desktop flow)."""
-import os, pickle, http.client, httplib2, time
+"""YouTube Shorts upload via YouTube Data API v3 (OAuth desktop flow).
+
+Two ways to authenticate:
+  - LOCAL:  client_secret.json + token.json files on disk.
+  - CI:     base64-encoded blobs in env vars
+            YT_CLIENT_SECRET_B64 and YT_TOKEN_B64.
+"""
+import os, base64, time
 from . import config, db
 
 _SCOPES = ["https://www.googleapis.com/auth/youtube.upload",
            "https://www.googleapis.com/auth/youtube.readonly"]
+
+def _hydrate_from_env():
+    """If env vars are set (GitHub Actions), write client_secret.json/token.json to disk."""
+    cs = os.getenv("YT_CLIENT_SECRET_B64")
+    tk = os.getenv("YT_TOKEN_B64")
+    if cs and not config.YT_CLIENT_SECRETS.exists():
+        config.YT_CLIENT_SECRETS.parent.mkdir(parents=True, exist_ok=True)
+        config.YT_CLIENT_SECRETS.write_bytes(base64.b64decode(cs))
+    if tk and not config.YT_TOKEN_FILE.exists():
+        config.YT_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        config.YT_TOKEN_FILE.write_bytes(base64.b64decode(tk))
 
 def _service():
     from google.oauth2.credentials import Credentials
     from google_auth_oauthlib.flow import InstalledAppFlow
     from google.auth.transport.requests import Request
     from googleapiclient.discovery import build
+    _hydrate_from_env()
     creds = None
     if config.YT_TOKEN_FILE.exists():
         creds = Credentials.from_authorized_user_file(str(config.YT_TOKEN_FILE), _SCOPES)
@@ -17,6 +35,8 @@ def _service():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
+            if os.getenv("CI"):
+                raise RuntimeError("YT_TOKEN_B64 missing or invalid; run authorize once locally and copy token.json contents to GitHub Secret YT_TOKEN_B64 (base64).")
             if not config.YT_CLIENT_SECRETS.exists():
                 raise RuntimeError(f"Missing {config.YT_CLIENT_SECRETS}. Create OAuth Desktop creds in Google Cloud Console.")
             flow = InstalledAppFlow.from_client_secrets_file(str(config.YT_CLIENT_SECRETS), _SCOPES)

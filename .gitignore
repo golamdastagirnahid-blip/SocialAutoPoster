@@ -15,6 +15,9 @@ token.json
 
 # Local data
 automation_data/
+!automation_data/
+automation_data/*
+!automation_data/state.json
 downloads/
 *.db
 *.sqlite

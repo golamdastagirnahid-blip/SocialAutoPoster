@@ -1,0 +1,6 @@
+# YouTube source URLs — one per line. Videos only (images are auto-skipped).
+# Lines starting with `#` are comments.
+# Supports: bunkr albums, direct .mp4 URLs, or any yt-dlp page.
+#
+# Example:
+# https://bunkr.cr/a/eqbJ1JL5

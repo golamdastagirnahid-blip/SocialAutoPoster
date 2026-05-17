@@ -1,0 +1,22 @@
+{
+  "facebook": {
+    "last_post_ts": 0,
+    "posted_count": 0,
+    "queue": [],
+    "seen": [],
+    "history": [],
+    "paused": false,
+    "consecutive_failures": 0,
+    "last_error": null
+  },
+  "youtube": {
+    "last_post_ts": 0,
+    "posted_count": 0,
+    "queue": [],
+    "seen": [],
+    "history": [],
+    "paused": false,
+    "consecutive_failures": 0,
+    "last_error": null
+  }
+}

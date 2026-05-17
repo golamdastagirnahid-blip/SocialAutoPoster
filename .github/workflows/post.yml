@@ -1,0 +1,90 @@
+name: Auto Post
+
+on:
+  schedule:
+    # every hour, on a slightly off-the-hour minute to look organic
+    - cron: '17 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Post immediately (bypass cooldown)'
+        required: false
+        default: 'false'
+      platform:
+        description: 'Which platform (leave blank for both)'
+        required: false
+        type: choice
+        options: ['', 'facebook', 'youtube']
+        default: ''
+
+# Allow the job to push state.json back to the repo
+permissions:
+  contents: write
+
+# Don't run multiple ticks at once (prevents racing on state.json)
+concurrency:
+  group: auto-post
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install ffmpeg (for validation)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tick
+        env:
+          CI: 'true'
+          GROQ_API_KEY:           ${{ secrets.GROQ_API_KEY }}
+          OPENROUTER_API_KEY:     ${{ secrets.OPENROUTER_API_KEY }}
+          FB_PAGE_ID:             ${{ secrets.FB_PAGE_ID }}
+          FB_PAGE_ACCESS_TOKEN:   ${{ secrets.FB_PAGE_ACCESS_TOKEN }}
+          YT_CLIENT_SECRET_B64:   ${{ secrets.YT_CLIENT_SECRET_B64 }}
+          YT_TOKEN_B64:           ${{ secrets.YT_TOKEN_B64 }}
+          YT_PRIVACY:             ${{ vars.YT_PRIVACY || 'public' }}
+          ACTIVE_HOUR_START:      ${{ vars.ACTIVE_HOUR_START || '9' }}
+          ACTIVE_HOUR_END:        ${{ vars.ACTIVE_HOUR_END || '23' }}
+        run: |
+          ARGS="tick"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+            if [ -n "${{ inputs.platform }}" ]; then
+              ARGS="post-once ${{ inputs.platform }}"
+              if [ "${{ inputs.force }}" = "true" ]; then ARGS="$ARGS --force"; fi
+            fi
+          fi
+          echo "Running: python -m automation.cli $ARGS"
+          python -m automation.cli $ARGS
+
+      - name: Commit updated state
+        run: |
+          git config user.name  "auto-poster-bot"
+          git config user.email "auto-poster-bot@users.noreply.github.com"
+          mkdir -p automation_data
+          # Only state.json should be committed; nothing else from automation_data/
+          git add -f automation_data/state.json || true
+          if git diff --cached --quiet; then
+            echo "state.json unchanged — nothing to commit"
+          else
+            git commit -m "chore: update state after auto-post tick [skip ci]"
+            git push
+          fi
