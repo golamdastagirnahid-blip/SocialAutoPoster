@@ -2,8 +2,9 @@ name: Auto Post
 
 on:
   schedule:
-    # every hour, on a slightly off-the-hour minute to look organic
-    - cron: '17 * * * *'
+    # every 5 minutes - bot wakes up frequently so it can post within ~5 min
+    # of the scheduled time. Most ticks idle in <30s.
+    - cron: '*/5 * * * *'
   workflow_dispatch:
     inputs:
       force:
