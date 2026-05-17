@@ -3,4 +3,4 @@
 # Supports: bunkr albums, direct media URLs (.mp4 / .jpg / .png ...), or any yt-dlp page.
 #
 # Example:
-# https://bunkr.cr/a/eqbJ1JL5
+# https://bunkr.cr/f/01hGukLXy2V7Z
