@@ -80,11 +80,21 @@ jobs:
           git config user.name  "auto-poster-bot"
           git config user.email "auto-poster-bot@users.noreply.github.com"
           mkdir -p automation_data
-          # Only state.json should be committed; nothing else from automation_data/
           git add -f automation_data/state.json || true
           if git diff --cached --quiet; then
-            echo "state.json unchanged — nothing to commit"
-          else
-            git commit -m "chore: update state after auto-post tick [skip ci]"
-            git push
+            echo "state.json unchanged - nothing to commit"
+            exit 0
           fi
+          git commit -m "chore: update state after auto-post tick [skip ci]"
+          # Retry-with-rebase loop in case of a concurrent push
+          for i in 1 2 3 4 5; do
+            if git push; then
+              echo "pushed on attempt $i"
+              exit 0
+            fi
+            echo "push failed, attempt $i - rebasing onto origin/main"
+            git pull --rebase --strategy-option=ours origin main || true
+            sleep 2
+          done
+          echo "could not push state after 5 attempts" >&2
+          exit 1

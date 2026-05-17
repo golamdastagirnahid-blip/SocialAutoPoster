@@ -19,7 +19,6 @@
     "last_error": null
   },
   "youtube": {
-<<<<<<< Updated upstream
     "last_post_ts": 1779002112,
     "posted_count": 1,
     "queue": [],
@@ -34,20 +33,6 @@
         "media_url": "https://bunkr.cr/f/01hGukLXy2V7Z"
       }
     ],
-=======
-    "last_post_ts": 0,
-    "posted_count": 0,
-    "queue": [
-      {
-        "source_url": "https://bunkr.cr/f/01hGukLXy2V7Z",
-        "media_url": "https://bunkr.cr/f/01hGukLXy2V7Z",
-        "media_type": "video",
-        "added_ts": 1779003028
-      }
-    ],
-    "seen": [],
-    "history": [],
->>>>>>> Stashed changes
     "paused": false,
     "consecutive_failures": 0,
     "last_error": null

@@ -35,10 +35,21 @@ DEFAULT = lambda: {
 def load():
     if not STATE_FILE.exists():
         return DEFAULT()
+    raw = STATE_FILE.read_text(encoding="utf-8")
+    # Detect git merge-conflict markers - never silently wipe history
+    if "<<<<<<<" in raw or ">>>>>>>" in raw:
+        backup = STATE_FILE.with_suffix(".json.conflict")
+        backup.write_text(raw, encoding="utf-8")
+        raise RuntimeError(
+            f"state.json has unresolved merge conflict markers. "
+            f"Backed up to {backup}. Resolve manually before re-running.")
     try:
-        with open(STATE_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except Exception:
+        data = json.loads(raw)
+    except Exception as e:
+        backup = STATE_FILE.with_suffix(".json.corrupt")
+        backup.write_text(raw, encoding="utf-8")
+        print(f"[STATE] WARNING: state.json corrupt ({e}). Backed up to {backup}, "
+              f"starting fresh.")
         return DEFAULT()
     # Merge with defaults to forward-fix missing keys
     base = DEFAULT()
